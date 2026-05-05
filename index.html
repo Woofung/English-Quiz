@@ -237,7 +237,7 @@
     border: 1.5px solid var(--ink);
     background: var(--paper);
     color: var(--ink);
-    font-size: 18px;
+    font-size: 20px;
     text-align: center;
     border-radius: 2px;
     transition: background 0.05s, color 0.05s, border-color 0.05s;
@@ -786,6 +786,13 @@ function parseExcelBuffer(arrayBuffer) {
     def: String(r[kDef] || '').trim(),
     pos: kPos ? String(r[kPos] || '').trim() : ''
   })).filter(r => r.chapter && r.word && r.def);
+  
+  // 除錯：印出有 3 個以上翻譯的字（在 Console 看 F12）
+  const multi = allRows.filter(r => r.def.split(';').length >= 3);
+  console.log(`[Excel 載入] 共 ${allRows.length} 字，其中 ${multi.length} 字有 3+ 個翻譯`);
+  if (multi.length > 0) {
+    console.log('範例：', multi.slice(0, 5).map(r => `${r.word} → ${r.def}`).join(' | '));
+  }
   
   // 分組
   chaptersMap = {};

@@ -233,11 +233,11 @@
   }
   
   .option {
-    padding: 18px 24px;
+    padding: 14px 20px;
     border: 1.5px solid var(--ink);
     background: var(--paper);
     color: var(--ink);
-    font-size: 20px;
+    font-size: 18px;
     text-align: center;
     border-radius: 2px;
     transition: background 0.05s, color 0.05s, border-color 0.05s;
@@ -247,12 +247,15 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    line-height: 1.4;
+    word-break: break-word;
   }
   .option .num {
     font-family: 'Courier New', monospace;
     color: var(--ink-soft);
     margin-right: 12px;
     font-size: 14px;
+    flex-shrink: 0;
   }
   
   .option.selected {
@@ -935,30 +938,27 @@ function startQuiz(words) {
 }
 
 function buildQuestion(target, pool) {
-  // 取最常見的中文翻譯（第一個分號前）作為標準答案
-  const allDefs = target.def.split(';').map(s => s.trim()).filter(Boolean);
-  const correctDef = allDefs[0];
+  // 完整多義串作為正確答案（例：符號;標誌;簽名）
+  const correctDef = target.def.trim();
+  const allDefs = correctDef.split(';').map(s => s.trim()).filter(Boolean);
   
-  // 詞性去重：noun;noun → noun, verb;noun → verb · noun
-  const allPos = (target.pos || '').split(';').map(s => s.trim()).filter(Boolean);
-  const uniquePos = [...new Set(allPos)];
-  const posDisplay = uniquePos.join(' · ');
+  // 詞性顯示為完整對應版（例：noun;noun;verb）
+  const posDisplay = (target.pos || '').trim();
   
   // === 收集干擾選項 ===
   // 規則：
   //   1. 不能跟正確答案同字（target.word）
-  //   2. 該字的所有翻譯（不只第一個）都不能跟正確答案的任何翻譯重複
-  //      → 例如 thermometer 是「溫度計」，就不能挑到任何也有「溫度計」這個翻譯的字
-  //   3. 取每個干擾字的第一個翻譯，且這個翻譯本身不能與正確答案任一翻譯衝突
-  //   4. 干擾選項彼此之間也不能重複
+  //   2. 干擾字的「完整解釋字串」不能等於正確答案的完整字串
+  //   3. 干擾字的「任一翻譯」不能與正確答案的任一翻譯重疊
+  //      → 例如 thermometer 解釋是「溫度計」，就不能挑到任何也含「溫度計」的字
+  //   4. 干擾選項彼此之間也不能重複（用完整字串比對）
   
-  const correctDefSet = new Set(allDefs);  // 正確字的所有翻譯
+  const correctDefSet = new Set(allDefs);
   
-  // 過濾候選：排除掉「任一翻譯」與正確字翻譯重疊的字
   function isValidCandidate(w) {
     if (w.word === target.word) return false;
     const wDefs = w.def.split(';').map(s => s.trim()).filter(Boolean);
-    // 任一翻譯重複到正確答案集合，就排除
+    if (!wDefs.length) return false;
     for (const d of wDefs) {
       if (correctDefSet.has(d)) return false;
     }
@@ -967,15 +967,15 @@ function buildQuestion(target, pool) {
   
   const validInPool = pool.filter(isValidCandidate);
   const distractors = [];
-  const usedDefs = new Set([correctDef]);  // 已用過的選項翻譯
+  const usedDefStrings = new Set([correctDef]);
   
   // 從同章節有效候選中抽
   for (const w of shuffle(validInPool)) {
     if (distractors.length >= 7) break;
-    const firstDef = w.def.split(';')[0].trim();
-    if (usedDefs.has(firstDef)) continue;  // 干擾選項彼此也不重複
-    distractors.push(firstDef);
-    usedDefs.add(firstDef);
+    const fullDef = w.def.trim();
+    if (usedDefStrings.has(fullDef)) continue;
+    distractors.push(fullDef);
+    usedDefStrings.add(fullDef);
   }
   
   // 不夠的話從整本書補（仍套用相同規則）
@@ -983,10 +983,10 @@ function buildQuestion(target, pool) {
     const validInAll = allRows.filter(isValidCandidate);
     for (const w of shuffle(validInAll)) {
       if (distractors.length >= 7) break;
-      const firstDef = w.def.split(';')[0].trim();
-      if (usedDefs.has(firstDef)) continue;
-      distractors.push(firstDef);
-      usedDefs.add(firstDef);
+      const fullDef = w.def.trim();
+      if (usedDefStrings.has(fullDef)) continue;
+      distractors.push(fullDef);
+      usedDefStrings.add(fullDef);
     }
   }
   
@@ -996,7 +996,7 @@ function buildQuestion(target, pool) {
   return {
     word: target.word,
     posDisplay,
-    allDefs,        // 所有翻譯供答題後顯示
+    allDefs,        // 仍保留，供結果頁可能使用
     correctDef,
     options: allOptions,
     correctIdx
@@ -1027,10 +1027,8 @@ function renderQuestion() {
   document.getElementById('word').textContent = q.word;
   document.getElementById('pos').textContent = q.posDisplay || '';
   
-  // 完整翻譯預先填入但隱藏，答題後再顯示
-  const allDefsEl = document.getElementById('all-defs');
-  allDefsEl.textContent = q.allDefs.join('；');
-  allDefsEl.classList.remove('show');
+  // 不再需要「答題後顯示完整翻譯」，選項本身已是完整翻譯
+  document.getElementById('all-defs').classList.remove('show');
   
   const optsDiv = document.getElementById('options');
   optsDiv.innerHTML = '';
@@ -1083,11 +1081,6 @@ function submitAnswer() {
   const correct = (selectedIdx === q.correctIdx);
   
   const optEls = document.querySelectorAll('.option');
-  
-  // 顯示完整翻譯（如果這個字有多個翻譯才顯示）
-  if (q.allDefs.length > 1) {
-    document.getElementById('all-defs').classList.add('show');
-  }
   
   if (correct) {
     document.body.classList.add('correct-flash');

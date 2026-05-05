@@ -836,7 +836,7 @@ async function tryAutoLoadSavedExcel() {
   try {
     parseExcelBuffer(saved.buffer);
     fileName.textContent = saved.name;
-    renderSavedFileBanner(saved.name, saved.savedAt);
+    renderSavedFileBanner(saved.name, saved.savedAt, 'local');
     return true;
   } catch (e) {
     console.warn('自動載入失敗:', e);
@@ -845,32 +845,72 @@ async function tryAutoLoadSavedExcel() {
   }
 }
 
-function renderSavedFileBanner(name, savedAt) {
+// === 啟動時嘗試從同個資料夾抓預設 Excel 檔（給雲端部署用）===
+// 把 Excel 放在跟 index.html 同一個資料夾，下面這個 DEFAULT_EXCEL_URL 指向它
+const DEFAULT_EXCEL_URL = 'vocabulary.xlsx';   // 相對路徑，會跟著網頁 host 走
+
+async function tryLoadDefaultExcel() {
+  try {
+    // 加上時間戳記參數避免瀏覽器/CDN 快取舊檔
+    const url = DEFAULT_EXCEL_URL + '?t=' + Date.now();
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) return false;
+    const contentType = resp.headers.get('Content-Type') || '';
+    // 確保抓到的真的是 Excel 檔，不是 GitHub 的 404 HTML 頁面
+    const buffer = await resp.arrayBuffer();
+    if (buffer.byteLength < 100) return false;
+    // 簡單檢查：xlsx 檔開頭是 PK (zip 格式)
+    const view = new Uint8Array(buffer.slice(0, 2));
+    if (view[0] !== 0x50 || view[1] !== 0x4B) return false;
+    
+    parseExcelBuffer(buffer);
+    fileName.textContent = DEFAULT_EXCEL_URL;
+    // 同時存到 IndexedDB 讓沒網路時也能用
+    await saveExcelToDB(DEFAULT_EXCEL_URL, buffer);
+    renderSavedFileBanner(DEFAULT_EXCEL_URL, new Date().toISOString(), 'cloud');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function renderSavedFileBanner(name, savedAt, source) {
   const date = new Date(savedAt);
   const dateStr = `${date.getFullYear()}/${String(date.getMonth()+1).padStart(2,'0')}/${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+  const sourceLabel = source === 'cloud'
+    ? '☁ 來自網站最新版'
+    : `儲存於 ${dateStr}`;
+  const showClearBtn = source !== 'cloud';
   savedFileArea.innerHTML = `
     <div class="saved-file">
       <div class="saved-info">
         ✓ 已載入：<strong>${name}</strong>
-        <div class="meta">儲存於 ${dateStr} · 共 ${allRows.length} 字 / ${Object.keys(chaptersMap).length} 章</div>
+        <div class="meta">${sourceLabel} · 共 ${allRows.length} 字 / ${Object.keys(chaptersMap).length} 章</div>
       </div>
-      <button id="clear-saved-btn">清除</button>
+      ${showClearBtn ? '<button id="clear-saved-btn">清除</button>' : ''}
     </div>
   `;
-  document.getElementById('clear-saved-btn').addEventListener('click', async () => {
-    await clearSavedExcel();
-    savedFileArea.innerHTML = '';
-    fileName.textContent = '';
-    chapterSelect.innerHTML = '<option>請先上傳檔案</option>';
-    chapterSelect.disabled = true;
-    startBtn.disabled = true;
-    allRows = [];
-    chaptersMap = {};
-  });
+  if (showClearBtn) {
+    document.getElementById('clear-saved-btn').addEventListener('click', async () => {
+      await clearSavedExcel();
+      savedFileArea.innerHTML = '';
+      fileName.textContent = '';
+      chapterSelect.innerHTML = '<option>請先上傳檔案</option>';
+      chapterSelect.disabled = true;
+      startBtn.disabled = true;
+      allRows = [];
+      chaptersMap = {};
+    });
+  }
 }
 
-// 啟動時嘗試自動載入
-tryAutoLoadSavedExcel();
+// 啟動載入順序：先試雲端最新版，失敗再用本機快取
+(async () => {
+  const cloudOk = await tryLoadDefaultExcel();
+  if (!cloudOk) {
+    await tryAutoLoadSavedExcel();
+  }
+})();
 
 // =============== 開始考試 ===============
 startBtn.addEventListener('click', () => {

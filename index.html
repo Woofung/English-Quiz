@@ -530,6 +530,139 @@
   }
   .result-actions button { flex: 1; }
   
+  /* ===== 手動瀏覽畫面 ===== */
+  #browse-screen {
+    padding: 40px 20px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* 點擊區（左/右半邊）— 滿版、透明、置於底層 */
+  .browse-tap-zone {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    z-index: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: rgba(184, 68, 46, 0.08);
+  }
+  .browse-tap-prev { left: 0; }
+  .browse-tap-next { right: 0; }
+  /* 桌機：點擊提示用箭頭符號淡淡浮現 */
+  .browse-tap-zone::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    width: 48px;
+    height: 48px;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.2s;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 32px 32px;
+  }
+  .browse-tap-prev::before {
+    left: 24px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a5048' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='15 18 9 12 15 6'/></svg>");
+  }
+  .browse-tap-next::before {
+    right: 24px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a5048' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='9 18 15 12 9 6'/></svg>");
+  }
+  .browse-tap-zone:hover::before { opacity: 0.5; }
+  
+  /* 卡片本體 */
+  .browse-card {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 720px;
+    text-align: center;
+    pointer-events: none;  /* 讓卡片本身不擋住背景點擊區，但子元素可單獨開啟 */
+  }
+  .browse-card > * { pointer-events: auto; }
+  .browse-counter {
+    font-family: 'Didot', 'Bodoni 72', serif;
+    font-size: 18px;
+    color: var(--ink-soft);
+    letter-spacing: 4px;
+    margin-bottom: 28px;
+    pointer-events: none;
+  }
+  .browse-content {
+    border: 1px solid var(--rule);
+    background: rgba(255, 255, 255, 0.35);
+    padding: 56px 32px 64px;
+    margin-bottom: 28px;
+    pointer-events: none;
+  }
+  .browse-def {
+    font-family: 'Microsoft JhengHei', 'PingFang TC', 'Noto Serif TC', serif;
+    font-size: 48px;
+    font-weight: 400;
+    letter-spacing: 2px;
+    line-height: 1.25;
+    color: var(--ink);
+    word-break: break-word;
+  }
+  .browse-pos {
+    margin-top: 12px;
+    font-family: 'Iowan Old Style', Palatino, serif;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 17px;
+    letter-spacing: 1px;
+    min-height: 22px;
+  }
+  .browse-divider {
+    width: 80px;
+    height: 1px;
+    background: var(--rule);
+    margin: 32px auto;
+  }
+  .browse-word {
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, serif;
+    font-size: 56px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    color: var(--accent);
+    word-break: break-word;
+  }
+  .browse-hint {
+    font-family: 'Iowan Old Style', Palatino, serif;
+    font-style: italic;
+    color: var(--ink-soft);
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    pointer-events: none;
+  }
+  .browse-hint-touch { display: none; }
+  /* iPad / 平板觸控：顯示觸控提示，桌機提示隱藏 */
+  @media (hover: none) and (pointer: coarse) {
+    .browse-hint-desktop { display: none; }
+    .browse-hint-touch { display: inline; }
+    .browse-tap-zone:hover::before { opacity: 0; }
+  }
+  .browse-actions {
+    display: flex;
+    justify-content: center;
+  }
+  .browse-actions button {
+    padding: 12px 32px;
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+  /* 翻頁淡入動畫 */
+  .browse-content.flip {
+    animation: browse-flip 0.18s ease-out;
+  }
+  @keyframes browse-flip {
+    0% { opacity: 0.3; transform: translateX(0); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  
   .error-msg {
     color: var(--red);
     background: rgba(201,57,44,0.1);
@@ -586,6 +719,13 @@
     .round-tag { top: 16px; left: 16px; font-size: 11px; }
     .result { padding: 32px 24px; }
     .result h2 { font-size: 36px; }
+    /* 瀏覽畫面 — 縮小字級 */
+    .browse-content { padding: 36px 20px 44px; }
+    .browse-def { font-size: 32px; letter-spacing: 1px; }
+    .browse-word { font-size: 38px; letter-spacing: 2px; }
+    .browse-pos { font-size: 15px; }
+    .browse-counter { font-size: 14px; margin-bottom: 18px; }
+    .browse-divider { margin: 24px auto; }
   }
 </style>
 </head>
@@ -624,14 +764,15 @@
     </div>
     
     <div class="field">
-      <label>難度模式</label>
-      <div style="display:flex; gap:10px;">
-        <button id="setup-mode-easy" class="setup-mode-btn" style="flex:1; padding:14px; border:1.5px solid var(--ink); background:var(--paper); color:var(--ink); cursor:pointer; font-family:inherit; font-size:15px;">簡單<br><span style="font-size:11px; opacity:0.7; font-style:italic;">提示首尾字母 + 字數</span></button>
-        <button id="setup-mode-normal" class="setup-mode-btn active" style="flex:1; padding:14px; border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); cursor:pointer; font-family:inherit; font-size:15px;">一般<br><span style="font-size:11px; opacity:0.7; font-style:italic;">中文意思 → 任一英文同義字</span></button>
+      <label>模式</label>
+      <div style="display:flex; gap:8px;">
+        <button id="setup-mode-browse" class="setup-mode-btn" style="flex:1; padding:14px 8px; border:1.5px solid var(--ink); background:var(--paper); color:var(--ink); cursor:pointer; font-family:inherit; font-size:15px;">手動<br><span style="font-size:11px; opacity:0.7; font-style:italic;">同時看中英 · 翻頁瀏覽</span></button>
+        <button id="setup-mode-easy" class="setup-mode-btn active" style="flex:1; padding:14px 8px; border:1.5px solid var(--ink); background:var(--ink); color:var(--paper); cursor:pointer; font-family:inherit; font-size:15px;">簡單<br><span style="font-size:11px; opacity:0.7; font-style:italic;">提示首尾字母 + 字數</span></button>
+        <button id="setup-mode-normal" class="setup-mode-btn" style="flex:1; padding:14px 8px; border:1.5px solid var(--ink); background:var(--paper); color:var(--ink); cursor:pointer; font-family:inherit; font-size:15px;">一般<br><span style="font-size:11px; opacity:0.7; font-style:italic;">中文意思 → 英文同義字</span></button>
       </div>
     </div>
     
-    <button class="start-btn" id="start-btn" disabled>開始考試</button>
+    <button class="start-btn" id="start-btn" disabled>開 始</button>
     <p class="info-text" id="info-text">輸入英文 · Enter 確認</p>
     <div id="error-msg-visible" style="color: var(--accent); font-size: 14px; margin-top: 12px; text-align: center;"></div>
   </div>
@@ -679,6 +820,30 @@
     <div class="result-actions">
       <button id="retry-btn">同章節再來一次</button>
       <button id="back-btn">回到主選單</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 手動瀏覽畫面 ============ -->
+<div class="screen" id="browse-screen">
+  <!-- 左右點擊區（手機/iPad 友善） -->
+  <div class="browse-tap-zone browse-tap-prev" id="browse-tap-prev" aria-label="上一張"></div>
+  <div class="browse-tap-zone browse-tap-next" id="browse-tap-next" aria-label="下一張"></div>
+
+  <div class="browse-card">
+    <div class="browse-counter" id="browse-counter">1 / 1</div>
+    <div class="browse-content">
+      <div class="browse-def" id="browse-def"></div>
+      <div class="browse-pos" id="browse-pos"></div>
+      <div class="browse-divider"></div>
+      <div class="browse-word" id="browse-word"></div>
+    </div>
+    <div class="browse-hint">
+      <span class="browse-hint-desktop">← 上一張 &nbsp;·&nbsp; 下一張 →</span>
+      <span class="browse-hint-touch">點左半邊 ← &nbsp;·&nbsp; 點右半邊 →</span>
+    </div>
+    <div class="browse-actions">
+      <button id="browse-back-btn">回到主選單</button>
     </div>
   </div>
 </div>
@@ -1125,33 +1290,45 @@ function renderSavedFileBanner(name, savedAt, source) {
   }
 })();
 
-// =============== 開始考試 ===============
+// =============== 開始 ===============
 startBtn.addEventListener('click', () => {
   currentChapter = chapterSelect.value;
-  startQuiz(chaptersMap[currentChapter]);
+  if (currentMode === 'browse') {
+    startBrowse(chaptersMap[currentChapter]);
+  } else {
+    startQuiz(chaptersMap[currentChapter]);
+  }
 });
 
-// 模式狀態（'easy' or 'normal'，預設 'normal'）
-let currentMode = 'normal';
+// 模式狀態（'browse' / 'easy' / 'normal'，預設 'easy'）
+let currentMode = 'easy';
 
 // 模式切換按鈕（起始畫面）
+document.getElementById('setup-mode-browse').addEventListener('click', () => setSetupMode('browse'));
 document.getElementById('setup-mode-easy').addEventListener('click', () => setSetupMode('easy'));
 document.getElementById('setup-mode-normal').addEventListener('click', () => setSetupMode('normal'));
 
 function setSetupMode(mode) {
   currentMode = mode;
+  const browseBtn = document.getElementById('setup-mode-browse');
   const easyBtn = document.getElementById('setup-mode-easy');
   const normalBtn = document.getElementById('setup-mode-normal');
-  if (mode === 'easy') {
-    easyBtn.style.background = 'var(--ink)'; easyBtn.style.color = 'var(--paper)';
-    normalBtn.style.background = 'var(--paper)'; normalBtn.style.color = 'var(--ink)';
-  } else {
-    normalBtn.style.background = 'var(--ink)'; normalBtn.style.color = 'var(--paper)';
-    easyBtn.style.background = 'var(--paper)'; easyBtn.style.color = 'var(--ink)';
+  // 統一先全部設成未選取，再把選到的設成 active
+  for (const b of [browseBtn, easyBtn, normalBtn]) {
+    b.style.background = 'var(--paper)';
+    b.style.color = 'var(--ink)';
+    b.classList.remove('active');
   }
-  // 同步右上角模式按鈕
+  const activeBtn = mode === 'browse' ? browseBtn : (mode === 'easy' ? easyBtn : normalBtn);
+  activeBtn.style.background = 'var(--ink)';
+  activeBtn.style.color = 'var(--paper)';
+  activeBtn.classList.add('active');
+  // 同步右上角模式按鈕（手動模式不適用，因右上角只有 easy/normal）
   document.getElementById('mode-easy').classList.toggle('active', mode === 'easy');
   document.getElementById('mode-normal').classList.toggle('active', mode === 'normal');
+  // 開始按鈕文字
+  const sb = document.getElementById('start-btn');
+  if (sb) sb.textContent = (mode === 'browse') ? '開始瀏覽' : '開 始';
 }
 
 // 考試中右上角的模式切換按鈕
@@ -1537,6 +1714,104 @@ document.getElementById('retry-btn').addEventListener('click', () => {
 });
 document.getElementById('back-btn').addEventListener('click', () => {
   switchScreen('setup-screen');
+});
+
+// =============== 手動瀏覽模式 ===============
+let browseList = [];
+let browseIdx = 0;
+
+function startBrowse(words) {
+  // 依字母順序排序，方便瀏覽（不洗牌；要看哪個字找得到）
+  browseList = [...words].sort((a, b) =>
+    a.word.toLowerCase().localeCompare(b.word.toLowerCase())
+  );
+  browseIdx = 0;
+  // 隱藏右上角模式面板（瀏覽模式不需要）
+  document.getElementById('mode-panel').style.display = 'none';
+  switchScreen('browse-screen');
+  renderBrowse();
+}
+
+function renderBrowse() {
+  if (!browseList.length) return;
+  const item = browseList[browseIdx];
+  document.getElementById('browse-counter').textContent =
+    `${browseIdx + 1} / ${browseList.length}`;
+  document.getElementById('browse-def').textContent = item.def || '';
+  document.getElementById('browse-pos').textContent = item.pos || '';
+  document.getElementById('browse-word').textContent = item.word || '';
+  // 加上翻頁動畫
+  const content = document.querySelector('#browse-screen .browse-content');
+  if (content) {
+    content.classList.remove('flip');
+    void content.offsetWidth;  // 強制重排，讓動畫重新觸發
+    content.classList.add('flip');
+  }
+}
+
+function browseNext() {
+  if (!browseList.length) return;
+  if (browseIdx < browseList.length - 1) {
+    browseIdx++;
+    renderBrowse();
+  }
+}
+
+function browsePrev() {
+  if (!browseList.length) return;
+  if (browseIdx > 0) {
+    browseIdx--;
+    renderBrowse();
+  }
+}
+
+// 點擊區（左/右半邊）— 觸控與滑鼠都可用
+document.getElementById('browse-tap-prev').addEventListener('click', e => {
+  e.preventDefault();
+  browsePrev();
+});
+document.getElementById('browse-tap-next').addEventListener('click', e => {
+  e.preventDefault();
+  browseNext();
+});
+
+// 回主選單
+document.getElementById('browse-back-btn').addEventListener('click', e => {
+  // 阻止冒泡到背景的 tap-zone
+  e.stopPropagation();
+  switchScreen('setup-screen');
+});
+
+// 鍵盤導覽（左右鍵 / Page Up Down / Home End）
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('browse-screen').classList.contains('active')) return;
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'PageDown':
+    case ' ':
+      e.preventDefault();
+      browseNext();
+      break;
+    case 'ArrowLeft':
+    case 'PageUp':
+      e.preventDefault();
+      browsePrev();
+      break;
+    case 'Home':
+      e.preventDefault();
+      browseIdx = 0;
+      renderBrowse();
+      break;
+    case 'End':
+      e.preventDefault();
+      browseIdx = browseList.length - 1;
+      renderBrowse();
+      break;
+    case 'Escape':
+      e.preventDefault();
+      switchScreen('setup-screen');
+      break;
+  }
 });
 
 function switchScreen(id) {

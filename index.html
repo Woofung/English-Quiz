@@ -31,8 +31,24 @@
     transition: background 0.4s ease;
   }
   
-  body.correct-flash { background: var(--green-bg); }
-  body.wrong-flash { background: var(--red-bg); }
+  /* 答對 / 答錯：用整片邊框閃爍，而不是改變整個背景，避免遮住內容 */
+  body.correct-flash::before,
+  body.wrong-flash::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 100;
+    border: 8px solid transparent;
+    box-sizing: border-box;
+    animation: flash-fade 0.6s ease-out forwards;
+  }
+  body.correct-flash::before { border-color: var(--green-bg); }
+  body.wrong-flash::before { border-color: var(--red); }
+  @keyframes flash-fade {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
   
   /* ===== 螢幕切換 ===== */
   .screen {
@@ -279,10 +295,9 @@
     font-size: 26px;
     letter-spacing: 1px;
     min-height: 36px;
-    opacity: 0;
-    transition: opacity 0.3s;
+    visibility: hidden;
   }
-  .correct-answers.show { opacity: 1; }
+  .correct-answers.show { visibility: visible; }
   .correct-answers .label {
     font-style: italic;
     font-size: 14px;
@@ -292,13 +307,16 @@
     text-transform: uppercase;
   }
   .correct-answers .ans {
-    color: var(--green-bg);
+    color: var(--ink);
+    background: #b8e0a0;
+    padding: 3px 12px;
+    border-radius: 3px;
     font-weight: bold;
+    margin: 0 3px;
+    border: 1px solid var(--green);
   }
-  .correct-answers .ans + .ans::before {
-    content: ' / ';
-    color: var(--ink-soft);
-    font-weight: normal;
+  .correct-answers .ans + .ans {
+    margin-left: 6px;
   }
   
   /* 輸入框 + 旁邊「實際意思」 */
@@ -320,11 +338,10 @@
     color: var(--ink-soft);
     letter-spacing: 1px;
     white-space: nowrap;
-    opacity: 0;
-    transition: opacity 0.3s;
+    visibility: hidden;
     text-align: left;
   }
-  .user-answer-meaning.show { opacity: 1; }
+  .user-answer-meaning.show { visibility: visible; }
   .user-answer-meaning .verb {
     font-style: italic;
     margin-right: 6px;
@@ -341,12 +358,12 @@
     letter-spacing: 3px;
     color: var(--ink-soft);
     text-transform: uppercase;
-    opacity: 0;
+    visibility: hidden;
     font-style: italic;
-    transition: opacity 0.3s;
     text-align: center;
+    opacity: 0.7;
   }
-  .press-enter-hint.show { opacity: 0.7; }
+  .press-enter-hint.show { visibility: visible; }
   
   /* 模式切換按鈕（右上角） */
   .mode-panel {

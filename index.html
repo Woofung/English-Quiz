@@ -480,8 +480,9 @@
     <h1>Vocabulary Quiz</h1>
     <p class="subtitle">— 單字測驗 —</p>
     
-    <div class="field">
-      <label>① 上傳 Excel 檔</label>
+    <!-- 隱藏的上傳區（保留 DOM 與相關 JS 邏輯，但不顯示） -->
+    <div class="field" style="display:none">
+      <label>上傳 Excel 檔</label>
       <div id="saved-file-area"></div>
       <label class="file-drop" id="file-drop">
         <div class="file-icon">📖</div>
@@ -493,14 +494,15 @@
     </div>
     
     <div class="field">
-      <label>② 選擇章節</label>
+      <label>選擇章節</label>
       <select id="chapter-select" disabled>
-        <option>請先上傳檔案</option>
+        <option>字庫載入中…</option>
       </select>
     </div>
     
     <button class="start-btn" id="start-btn" disabled>開始考試</button>
-    <p class="info-text">操作：方向鍵選擇 · 空白鍵確認</p>
+    <p class="info-text" id="info-text">操作：方向鍵選擇 · 空白鍵確認</p>
+    <div id="error-msg-visible" style="color: var(--accent); font-size: 14px; margin-top: 12px; text-align: center;"></div>
   </div>
 </div>
 
@@ -885,32 +887,10 @@ async function tryLoadDefaultExcel() {
 }
 
 function renderSavedFileBanner(name, savedAt, source) {
-  const date = new Date(savedAt);
-  const dateStr = `${date.getFullYear()}/${String(date.getMonth()+1).padStart(2,'0')}/${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
-  const sourceLabel = source === 'cloud'
-    ? '☁ 來自網站最新版'
-    : `儲存於 ${dateStr}`;
-  const showClearBtn = source !== 'cloud';
-  savedFileArea.innerHTML = `
-    <div class="saved-file">
-      <div class="saved-info">
-        ✓ 已載入：<strong>${name}</strong>
-        <div class="meta">${sourceLabel} · 共 ${allRows.length} 字 / ${Object.keys(chaptersMap).length} 章</div>
-      </div>
-      ${showClearBtn ? '<button id="clear-saved-btn">清除</button>' : ''}
-    </div>
-  `;
-  if (showClearBtn) {
-    document.getElementById('clear-saved-btn').addEventListener('click', async () => {
-      await clearSavedExcel();
-      savedFileArea.innerHTML = '';
-      fileName.textContent = '';
-      chapterSelect.innerHTML = '<option>請先上傳檔案</option>';
-      chapterSelect.disabled = true;
-      startBtn.disabled = true;
-      allRows = [];
-      chaptersMap = {};
-    });
+  // banner 已從 UI 隱藏，只更新底部 info-text
+  const info = document.getElementById('info-text');
+  if (info) {
+    info.textContent = `共 ${allRows.length} 字 / ${Object.keys(chaptersMap).length} 章 · 方向鍵選擇 · 空白鍵確認`;
   }
 }
 
@@ -918,7 +898,14 @@ function renderSavedFileBanner(name, savedAt, source) {
 (async () => {
   const cloudOk = await tryLoadDefaultExcel();
   if (!cloudOk) {
-    await tryAutoLoadSavedExcel();
+    const cachedOk = await tryAutoLoadSavedExcel();
+    if (!cachedOk) {
+      // 都沒有：顯示錯誤訊息
+      const visible = document.getElementById('error-msg-visible');
+      if (visible) visible.textContent = '字庫載入失敗，請確認 vocabulary.xlsx 是否在同一個資料夾，並重新整理頁面。';
+      const info = document.getElementById('info-text');
+      if (info) info.textContent = '';
+    }
   }
 })();
 

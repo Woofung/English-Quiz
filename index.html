@@ -831,6 +831,10 @@ function clearError() { errorMsg.innerHTML = ''; }
 const DB_NAME = 'vocab-quiz-db';
 const STORE_NAME = 'files';
 const FILE_KEY = 'last-excel';
+const DICT_KEY = 'last-dictionary';
+
+// 離線英漢字典（key 為小寫英文字，value 為中文翻譯）
+let offlineDict = {};
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -888,6 +892,38 @@ async function clearSavedExcel() {
       tx.onerror = () => { db.close(); resolve(); };
     });
   } catch (e) {}
+}
+
+// === 離線字典：存到 IndexedDB ===
+async function saveDictToDB(dict) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.objectStore(STORE_NAME).put({
+      dict,
+      savedAt: new Date().toISOString()
+    }, DICT_KEY);
+    return new Promise(resolve => {
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); resolve(); };
+    });
+  } catch (e) {
+    console.warn('無法儲存字典到 IndexedDB:', e);
+  }
+}
+
+async function loadDictFromDB() {
+  try {
+    const db = await openDB();
+    return await new Promise(resolve => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).get(DICT_KEY);
+      req.onsuccess = () => { db.close(); resolve(req.result || null); };
+      req.onerror = () => { db.close(); resolve(null); };
+    });
+  } catch (e) {
+    return null;
+  }
 }
 
 // =============== Excel 解析（核心）===============
@@ -998,6 +1034,7 @@ async function tryAutoLoadSavedExcel() {
 // === 啟動時嘗試從同個資料夾抓預設 Excel 檔（給雲端部署用）===
 // 把 Excel 放在跟 index.html 同一個資料夾，下面這個 DEFAULT_EXCEL_URL 指向它
 const DEFAULT_EXCEL_URL = 'vocabulary.xlsx';   // 相對路徑，會跟著網頁 host 走
+const DEFAULT_DICT_URL = 'dictionary.json';     // 離線英漢字典
 
 async function tryLoadDefaultExcel() {
   try {
@@ -1024,6 +1061,44 @@ async function tryLoadDefaultExcel() {
   }
 }
 
+// === 嘗試載入離線英漢字典（雲端優先 → IndexedDB 快取）===
+async function tryLoadDictionary() {
+  // 1. 先試雲端最新版
+  try {
+    const url = DEFAULT_DICT_URL + '?t=' + Date.now();
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (resp.ok) {
+      const text = await resp.text();
+      if (text && text.length > 100) {
+        try {
+          const dict = JSON.parse(text);
+          if (dict && typeof dict === 'object' && Object.keys(dict).length > 100) {
+            offlineDict = dict;
+            await saveDictToDB(dict);
+            console.log(`[字典載入] 雲端：${Object.keys(dict).length} 字`);
+            return true;
+          }
+        } catch (e) {
+          console.warn('字典 JSON 解析失敗:', e);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('雲端字典載入失敗:', e);
+  }
+  // 2. 雲端失敗就用本機快取
+  try {
+    const saved = await loadDictFromDB();
+    if (saved && saved.dict && typeof saved.dict === 'object') {
+      offlineDict = saved.dict;
+      console.log(`[字典載入] 本機快取：${Object.keys(saved.dict).length} 字`);
+      return true;
+    }
+  } catch (e) {}
+  console.log('[字典載入] 失敗，將沒有英漢字典查詢功能');
+  return false;
+}
+
 function renderSavedFileBanner(name, savedAt, source) {
   // banner 已從 UI 隱藏，只更新底部 info-text
   const info = document.getElementById('info-text');
@@ -1032,9 +1107,13 @@ function renderSavedFileBanner(name, savedAt, source) {
   }
 }
 
-// 啟動載入順序：先試雲端最新版，失敗再用本機快取
+// 啟動載入順序：先試雲端最新版，失敗再用本機快取；同時並行載入離線字典
 (async () => {
-  const cloudOk = await tryLoadDefaultExcel();
+  // 並行：Excel 字庫 + 離線字典（字典失敗也沒關係，不影響主功能）
+  const [cloudOk, _dictOk] = await Promise.all([
+    tryLoadDefaultExcel(),
+    tryLoadDictionary()
+  ]);
   if (!cloudOk) {
     const cachedOk = await tryAutoLoadSavedExcel();
     if (!cachedOk) {
@@ -1316,10 +1395,19 @@ function submitAnswer() {
     ansBox.classList.add('show');
     
     // 2. 在學生輸入的字旁邊顯示「是 XXX」（若該字在字庫裡，顯示中文意思）
-    const userMeaning = lookupMeaning(userAnswer);
+    const userMeaningInfo = lookupMeaning(userAnswer);
     const meaningEl = document.getElementById('user-answer-meaning');
-    if (userMeaning) {
-      meaningEl.innerHTML = `<span class="verb">是</span><span class="meaning">${userMeaning}</span>`;
+    if (userMeaningInfo) {
+      if (userMeaningInfo.source === 'excel') {
+        // 在課本字庫：顯示「是 XXX」
+        meaningEl.innerHTML = `<span class="verb">是</span><span class="meaning">${userMeaningInfo.meaning}</span>`;
+      } else {
+        // 不在課本字庫但在離線字典：顯示「是『XXX』，但這不是這題答案」
+        meaningEl.innerHTML =
+          `<span class="verb">是</span>` +
+          `<span class="meaning">『${userMeaningInfo.meaning}』</span>` +
+          `<span class="verb" style="margin-left:0.4em">，但這不是這題答案</span>`;
+      }
     } else {
       meaningEl.innerHTML = `<span class="verb">不是英文單字</span>`;
     }
@@ -1354,12 +1442,21 @@ function submitAnswer() {
 }
 
 // 查學生輸入的英文，回傳它的中文意思（若有）
+// 回傳格式：{ source: 'excel'|'dict', meaning: string } 或 null
 function lookupMeaning(userWord) {
-  const map = getWordToDefsMap();
   const w = userWord.trim().toLowerCase();
+  if (!w) return null;
+  // 1. 先查課文字庫（Excel）
+  const map = getWordToDefsMap();
   const defs = map[w];
-  if (!defs) return null;
-  return Array.from(defs).join('；');
+  if (defs) {
+    return { source: 'excel', meaning: Array.from(defs).join('；') };
+  }
+  // 2. 再查離線英漢字典（fallback）
+  if (offlineDict && offlineDict[w]) {
+    return { source: 'dict', meaning: offlineDict[w] };
+  }
+  return null;
 }
 
 function advanceAfterWrong() {

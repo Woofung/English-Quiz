@@ -272,12 +272,11 @@
     text-decoration-thickness: 2px;
   }
   
-  /* 答錯時下方顯示「正解：xxx; yyy」 */
+  /* 正確答案（顯示在題目下方） */
   .correct-answers {
-    margin-top: 24px;
+    margin-top: 28px;
     font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, serif;
-    font-size: 22px;
-    color: var(--ink);
+    font-size: 26px;
     letter-spacing: 1px;
     min-height: 36px;
     opacity: 0;
@@ -288,7 +287,7 @@
     font-style: italic;
     font-size: 14px;
     color: var(--ink-soft);
-    margin-right: 10px;
+    margin-right: 12px;
     letter-spacing: 3px;
     text-transform: uppercase;
   }
@@ -301,16 +300,53 @@
     color: var(--ink-soft);
     font-weight: normal;
   }
-  .correct-answers .press-enter {
-    display: block;
-    margin-top: 14px;
+  
+  /* 輸入框 + 旁邊「實際意思」 */
+  .answer-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    justify-content: center;
+  }
+  .answer-row .answer-input {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 360px;
+    max-width: 100%;
+  }
+  .user-answer-meaning {
+    font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+    font-size: 18px;
+    color: var(--ink-soft);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-align: left;
+  }
+  .user-answer-meaning.show { opacity: 1; }
+  .user-answer-meaning .verb {
+    font-style: italic;
+    margin-right: 6px;
+    color: var(--ink-soft);
+  }
+  .user-answer-meaning .meaning {
+    color: var(--red);
+    font-weight: bold;
+  }
+  
+  .press-enter-hint {
+    margin-top: 22px;
     font-size: 12px;
     letter-spacing: 3px;
     color: var(--ink-soft);
     text-transform: uppercase;
-    opacity: 0.7;
+    opacity: 0;
     font-style: italic;
+    transition: opacity 0.3s;
+    text-align: center;
   }
+  .press-enter-hint.show { opacity: 0.7; }
   
   /* 模式切換按鈕（右上角） */
   .mode-panel {
@@ -595,10 +631,14 @@
       <div class="definition" id="definition"></div>
       <div class="pos" id="pos"></div>
       <div class="mask-hint" id="mask-hint"></div>
+      <div class="correct-answers" id="correct-answers"></div>
     </div>
     <div class="answer-area">
-      <input type="text" class="answer-input" id="answer-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-      <div class="correct-answers" id="correct-answers"></div>
+      <div class="answer-row">
+        <input type="text" class="answer-input" id="answer-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div class="user-answer-meaning" id="user-answer-meaning"></div>
+      </div>
+      <div class="press-enter-hint" id="press-enter-hint"></div>
     </div>
     <div class="hint" id="hint">
       輸入英文 &nbsp;·&nbsp; <kbd>Enter</kbd> 確認
@@ -1173,9 +1213,16 @@ function renderQuestion() {
   input.disabled = false;
   setTimeout(() => input.focus(), 50);
   
-  // 清空正解區
-  document.getElementById('correct-answers').classList.remove('show');
-  document.getElementById('correct-answers').innerHTML = '';
+  // 清空正解區、實際意思區、按鍵提示
+  const ansBox = document.getElementById('correct-answers');
+  ansBox.classList.remove('show');
+  ansBox.innerHTML = '';
+  const meaningEl = document.getElementById('user-answer-meaning');
+  meaningEl.classList.remove('show');
+  meaningEl.innerHTML = '';
+  const pressEnterEl = document.getElementById('press-enter-hint');
+  pressEnterEl.classList.remove('show');
+  pressEnterEl.innerHTML = '';
   
   locked = false;
   document.body.classList.remove('locked');
@@ -1230,7 +1277,7 @@ function submitAnswer() {
     
     // 答對：顯示正解資訊（讓學生看到完整答案 / 同義字）
     const ansBox = document.getElementById('correct-answers');
-    ansBox.innerHTML = `<span class="label">正解</span>` +
+    ansBox.innerHTML = `<span class="label">正確答案</span>` +
       validAnswers.map(w => `<span class="ans">${w}</span>`).join('');
     ansBox.classList.add('show');
     
@@ -1244,11 +1291,26 @@ function submitAnswer() {
     document.body.classList.add('wrong-flash');
     input.classList.add('wrong');
     
+    // 1. 在題目下方顯示正確答案（一個或多個）
     const ansBox = document.getElementById('correct-answers');
-    ansBox.innerHTML = `<span class="label">正解</span>` +
-      validAnswers.map(w => `<span class="ans">${w}</span>`).join('') +
-      `<span class="press-enter">— 再按一次 Enter 繼續 —</span>`;
+    ansBox.innerHTML = `<span class="label">正確答案</span>` +
+      validAnswers.map(w => `<span class="ans">${w}</span>`).join('');
     ansBox.classList.add('show');
+    
+    // 2. 在學生輸入的字旁邊顯示「是 XXX」（若該字在字庫裡，顯示中文意思）
+    const userMeaning = lookupMeaning(userAnswer);
+    const meaningEl = document.getElementById('user-answer-meaning');
+    if (userMeaning) {
+      meaningEl.innerHTML = `<span class="verb">是</span><span class="meaning">${userMeaning}</span>`;
+    } else {
+      meaningEl.innerHTML = `<span class="verb">不是英文單字</span>`;
+    }
+    meaningEl.classList.add('show');
+    
+    // 3. 提示「再按 Enter 繼續」
+    const pressEnterEl = document.getElementById('press-enter-hint');
+    pressEnterEl.textContent = '— 再按一次 Enter 繼續 —';
+    pressEnterEl.classList.add('show');
     
     if (!isReviewRound) {
       stats.wrong++;
@@ -1269,6 +1331,15 @@ function submitAnswer() {
     }, 600);
   }
   updateCounter();
+}
+
+// 查學生輸入的英文，回傳它的中文意思（若有）
+function lookupMeaning(userWord) {
+  const map = getWordToDefsMap();
+  const w = userWord.trim().toLowerCase();
+  const defs = map[w];
+  if (!defs) return null;
+  return Array.from(defs).join('；');
 }
 
 function advanceAfterWrong() {

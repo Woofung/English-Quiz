@@ -1165,12 +1165,13 @@ function isCorrectNormal(userWord, targetWord) {
   return userWord.trim().toLowerCase() === targetWord.trim().toLowerCase();
 }
 
-// 一般模式提示遮罩：n _ _ _ _ _ s
+// 簡單模式提示遮罩：n _ _ _ _ _ s
+// 兩字母單字（如 by、me）只顯示首字母，避免變相直接給出答案
 function buildMaskHint(word) {
   const w = word.trim();
   if (w.length === 0) return '';
   if (w.length === 1) return w;
-  if (w.length === 2) return w[0] + ' ' + w[w.length - 1];
+  if (w.length === 2) return w[0] + ' _';
   const middle = Array(w.length - 2).fill('_').join(' ');
   return w[0] + ' ' + middle + ' ' + w[w.length - 1];
 }
@@ -1341,7 +1342,9 @@ function submitAnswer() {
       if (original) reviewQueue.push(original);
     }
     playWrongSound();
-    waitingForNext = true;
+    // 把 waitingForNext = true 延後一個 tick，避免同一次 Enter 事件冒泡到 document listener
+    // 立刻被當成「再按一次」而跳到下一題
+    setTimeout(() => { waitingForNext = true; }, 0);
     
     setTimeout(() => {
       document.body.classList.remove('correct-flash', 'wrong-flash');
@@ -1371,6 +1374,7 @@ const answerInputEl = document.getElementById('answer-input');
 answerInputEl.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     e.preventDefault();
+    e.stopPropagation();  // 不讓同一次 Enter 冒泡到 document listener
     if (waitingForNext) {
       advanceAfterWrong();
     } else if (!locked) {
